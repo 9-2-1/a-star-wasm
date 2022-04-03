@@ -1,0 +1,10 @@
+{
+  "name": "open-a-star-wasm-scext",
+  "version": "0.1.0",
+  "main": "test.js",
+  "author": "six-6",
+  "license": "MIT",
+  "dependencies": {
+    "wabt": "^1.0.28"
+  }
+}
