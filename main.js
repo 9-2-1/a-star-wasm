@@ -13,7 +13,6 @@ let fs = require("fs");
 	let instance = await WebAssembly.instantiate(wmodule);
 
 	// test everything here
-	console.log(instance.exports.a(32n));
 
 	// fs.writeFileSync("main.wat",module.toText({foldExprs: true, inlineExport: true}));
 	// module.destroy();
