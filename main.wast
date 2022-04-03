@@ -154,4 +154,151 @@
 		;; 如果没有摸到上面的返回0，就返回1
 		;; 处于func最后的return可以省略
 		(i32.const 1))
+
+	;; swap12
+	;; @param {i32} i12
+	;; @param {i32} j12
+	(func
+		$swap12 (export "swap12")
+		(param $i12 i32)
+		(param $j12 i32)
+		(local $sw1 i64)
+		(local $sw2 i32)
+		;; tmp = i; i = j; j = tmp;
+		(local.set $sw1 (i64.load offset=0 (local.get $i12)))
+		(local.set $sw2 (i32.load offset=8 (local.get $i12)))
+		(i64.store offset=0 (local.get $i12) (i64.load offset=0 (local.get $j12)))
+		(i32.store offset=8 (local.get $i12) (i32.load offset=8 (local.get $j12)))
+		(i64.store offset=0 (local.get $j12) (local.get $sw1))
+		(i32.store offset=8 (local.get $j12) (local.get $sw2)))
+
+	;; 插入数据到jilu大根堆
+	;; @param {i32} PQstast
+	;; @param {i32} PQlength
+	;; @param {i32} x
+	;; @param {i32} y
+	;; @param {i32} f
+	;; @return {i32} PQnewLength
+	(func
+		$PQadd (export "PQadd")
+		(param $PQstart i32)
+		(param $PQlength i32)
+		(param $x i32)
+		(param $y i32)
+		(param $f i32)
+		(local $i i32) ;; head
+		(local $i12 i32) ;; offset
+		(local $j i32) ;; head
+		(local $j12 i32) ;; offset
+		;; (call $debug (i32.const 1))
+		(local.set $i (local.get $PQlength))
+		;; cheng 12
+		(local.set
+			$i12
+			(i32.add
+				(local.get $PQstart)
+				(i32.mul (local.get $i) (i32.const 12))))
+		;; baocundaozuihoumian
+		(i32.store offset=0 (local.get $i12) (local.get $x))
+		(i32.store offset=4 (local.get $i12) (local.get $y))
+		(i32.store offset=8 (local.get $i12) (local.get $f))
+		;; kaishichuli rules
+		(loop
+			$loop ;; woyaoyong return
+			(if
+				(i32.eqz (local.get $i))
+				(then
+					(return (i32.add (local.get $PQlength) (i32.const 1)))))
+			(local.set
+				$j
+				(i32.div_u
+					(i32.sub (local.get $i) (i32.const 1))
+					(i32.const 2)))
+			(local.set
+				$i12
+				(i32.add
+					(local.get $PQstart)
+					(i32.mul (local.get $i) (i32.const 12))))
+			(local.set
+				$j12
+				(i32.add
+					(local.get $PQstart)
+					(i32.mul (local.get $j) (i32.const 12))))
+			;; (call $debug (i32.const -1))
+			;; (call $debug (local.get $i))
+			;; (call $debug (local.get $i12))
+			;; (call $debug (local.get $j))
+			;; (call $debug (local.get $j12))
+			(if
+				(i32.lt_u
+					(i32.load offset=8 (local.get $i12))
+					(i32.load offset=8 (local.get $j12)))
+				(then
+					(call $swap12 (local.get $i12) (local.get $j12))))
+			(local.set $i (local.get $j))
+			(br $loop)))
+
+	(func
+		$PQpick (export "PQpick")
+		(param $PQstart i32)
+		(param $PQlength i32)
+		(result i32)
+		(local $i i32) ;; head
+		(local $i12 i32) ;; offset
+		(local $j i32) ;; head
+		(local $j12 i32) ;; offset
+		(local.set $i (i32.sub (local.get $PQlength) (i32.const 1)))
+		(local.set $PQlength (i32.sub (local.get $PQlength) (i32.const 1)))
+		(local.set
+			$i12
+			(i32.add
+				(local.get $PQstart)
+				(i32.mul (local.get $i) (i32.const 12))))
+		(call $swap12 (local.get $PQstart) (local.get $i12))
+		(local.set $i (i32.const 0))
+		(local.set
+			$i12
+			(i32.add
+				(local.get $PQstart)
+				(i32.mul (local.get $i) (i32.const 12))))
+		(loop
+			$conti
+			;;(call $debug (local.get $i))
+			(local.set
+				$j
+				(i32.add
+					(i32.mul (local.get $i) (i32.const 2))
+					(i32.const 1)))
+			(local.set
+				$j12
+				(i32.add
+					(local.get $PQstart)
+					(i32.mul (local.get $j) (i32.const 12))))
+			(if
+				(i32.lt_u
+					(i32.add (local.get $j) (i32.const 1))
+					(local.get $PQlength))
+				(then
+					(if
+						(i32.lt_u (local.get $j) (local.get $PQlength))
+						(then
+							(if
+								(i32.gt_u
+									(i32.load offset=8  (local.get $j12))
+									(i32.load offset=20 (local.get $j12))) ;; 8+12
+								(then
+									(local.set $j (i32.add (local.get $j) (i32.const 1)))
+									(local.set $j12 (i32.add (local.get $j12) (i32.const 12)))))))
+					(if
+						(i32.gt_u
+							(i32.load offset=8 (local.get $i12))
+							(i32.load offset=8 (local.get $j12)))
+						(then
+							(call $swap12 (local.get $i12) (local.get $j12))))
+					(local.set $i (local.get $j))
+					(local.set $i12 (local.get $j12))
+					(br $conti))))
+		(i32.add
+			(local.get $PQstart)
+			(i32.mul (local.get $PQlength) (i32.const 12))))
 	)
