@@ -275,12 +275,12 @@
 					(local.get $PQstart)
 					(i32.mul (local.get $j) (i32.const 12))))
 			(if
-				(i32.lt_u
-					(i32.add (local.get $j) (i32.const 1))
-					(local.get $PQlength))
+				(i32.lt_u (local.get $j) (local.get $PQlength))
 				(then
 					(if
-						(i32.lt_u (local.get $j) (local.get $PQlength))
+						(i32.lt_u
+							(i32.add (local.get $j) (i32.const 1))
+							(local.get $PQlength))
 						(then
 							(if
 								(i32.gt_u
