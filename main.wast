@@ -214,6 +214,9 @@
 				(i32.div_u
 					(i32.sub (local.get $i) (i32.const 1))
 					(i32.const 2)))
+			;; (call $debug (i32.const -1))
+			;; (call $debug (local.get $i))
+			;; (call $debug (local.get $j))
 			(local.set
 				$i12
 				(i32.add
@@ -255,20 +258,25 @@
 				(local.get $PQstart)
 				(i32.mul (local.get $i) (i32.const 12))))
 		(call $swap12 (local.get $PQstart) (local.get $i12))
+
 		(local.set $i (i32.const 0))
 		(local.set
 			$i12
 			(i32.add
 				(local.get $PQstart)
 				(i32.mul (local.get $i) (i32.const 12))))
+
 		(loop
 			$conti
-			;;(call $debug (local.get $i))
+			;; (call $debug (i32.const 667788))
+			;; (call $debug (local.get $i))
 			(local.set
 				$j
 				(i32.add
 					(i32.mul (local.get $i) (i32.const 2))
 					(i32.const 1)))
+			;; (call $debug (local.get $j))
+			;; (call $debug (local.get $PQlength))
 			(local.set
 				$j12
 				(i32.add

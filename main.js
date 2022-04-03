@@ -60,34 +60,36 @@ let fs = require("fs");
 		test(2,memory[0],1);
 		test(3,memory[1],2);
 		test(4,memory[2],3);
-
 		instance.exports.PQadd(16,0,1,1,1);
 		instance.exports.PQadd(16,1,2,2,2);
 		instance.exports.PQadd(16,2,3,3,3);
+		// console.log(memory);
 		let pos;
 		pos = instance.exports.PQpick(16,3);
 		test(5,memory[pos/4 + 0],1);
 		test(6,memory[pos/4 + 1],1);
 		test(7,memory[pos/4 + 2],1);
+		// console.log(memory);
 		pos = instance.exports.PQpick(16,2);
 		test(8,memory[pos/4 + 0],2);
 		test(9,memory[pos/4 + 1],2);
 		test(10,memory[pos/4 + 2],2);
+		// console.log(memory);
 		pos = instance.exports.PQpick(16,1);
-		test(8,memory[pos/4 + 0],3);
-		test(9,memory[pos/4 + 1],3);
-		test(10,memory[pos/4 + 2],3);
+		test(11,memory[pos/4 + 0],3);
+		test(12,memory[pos/4 + 1],3);
+		test(13,memory[pos/4 + 2],3);
 
-		for(let x=1;x<=10;x++){
+		for(let x=1;x<=50;x++){
 			let sample=[];
 			let out=[];
 			let ans=[];
-			let count = (Math.floor((Math.random()+1)*x),3);
+			let count = Math.floor((Math.random()+1)*x);
 			for(let a=0;a<count;a++){
 				sample.push([
-					Math.floor(Math.random()*100),
-					Math.floor(Math.random()*100),
-					Math.floor(Math.random()*100)
+					Math.floor(Math.random()*0x7fffffff),
+					Math.floor(Math.random()*0x7fffffff),
+					Math.floor(Math.random()*0x7fffffff)
 				]);
 			}
 			for(let a=0;a<count;a++){
@@ -106,7 +108,8 @@ let fs = require("fs");
 				]);
 			}
 			ans=sample.sort((a,b)=>a[2]-b[2]);
-			console.log(String(sample));
+			// console.log(String(sample));
+			// problem!
 			test("cp"+x,String(out),String(ans));
 		}
 	}
