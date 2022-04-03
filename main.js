@@ -24,6 +24,13 @@ let fs = require("fs");
 
 	let wmodule = await WebAssembly.compile(bin);
 	let instance;
+	let impor = {
+		debug: {
+			debug: function(x){
+				console.log(x);
+			}
+		}
+	};
 
 	// 测试 内存拓展
 	if(true){

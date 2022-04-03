@@ -70,6 +70,10 @@
 ;; 看不懂的话下面全是实例，读一遍应该就大概了解了
 
 (module
+	;;debug
+	(type $debugtype (func (param i32) (result)))
+	(import "debug" "debug" (func $debug (type $debugtype)))
+
 	;;全局变量
 	(global $mapX i32 (i32.const 0) (;地图长(1到4096);))
 	(global $mapY i32 (i32.const 0) (;地图长(1到4096);))
