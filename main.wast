@@ -125,7 +125,9 @@
 		$growSize (export "growSize")
 		(param $size i32)
 		(result i32)
+
 		(local $origSize i32) ;; 原来的大小
+
 		(local.set
 			$size
 			(i32.div_u ;; 整数除法需要确定操作数是有符号还是无符号。u表示无符号，s表示有符号。
@@ -134,9 +136,11 @@
 				(i32.const 65536))) ;; 这里先把大小加上65535再除以65536，产生向上取整效果。
 		;; add 加 sub 减 mul 乘 div_o 除 rem_o 余数
 		;; (o为 s:有符号 u:无符号, 在浮点数类型不需要_o，因为浮点数有符号)
+
 		(local.set
 			$origSize
 			(memory.size)) ;; 获得原有页数
+
 		(if
 			(i32.lt_u (local.get $origSize) (local.get $size))
 			;; lt_u表示无符号小于，如果大小太小就拓展大小
@@ -162,13 +166,17 @@
 		$swap12 (export "swap12")
 		(param $i12 i32)
 		(param $j12 i32)
+
 		(local $sw1 i64)
 		(local $sw2 i32)
+
 		;; tmp = i; i = j; j = tmp;
 		(local.set $sw1 (i64.load offset=0 (local.get $i12)))
 		(local.set $sw2 (i32.load offset=8 (local.get $i12)))
+
 		(i64.store offset=0 (local.get $i12) (i64.load offset=0 (local.get $j12)))
 		(i32.store offset=8 (local.get $i12) (i32.load offset=8 (local.get $j12)))
+
 		(i64.store offset=0 (local.get $j12) (local.get $sw1))
 		(i32.store offset=8 (local.get $j12) (local.get $sw2)))
 
@@ -186,10 +194,12 @@
 		(param $x i32)
 		(param $y i32)
 		(param $f i32)
+
 		(local $i i32) ;; head
 		(local $i12 i32) ;; offset
 		(local $j i32) ;; head
 		(local $j12 i32) ;; offset
+
 		;; (call $debug (i32.const 1))
 		(local.set $i (local.get $PQlength))
 		;; cheng 12
@@ -198,10 +208,12 @@
 			(i32.add
 				(local.get $PQstart)
 				(i32.mul (local.get $i) (i32.const 12))))
+
 		;; baocundaozuihoumian
 		(i32.store offset=0 (local.get $i12) (local.get $x))
 		(i32.store offset=4 (local.get $i12) (local.get $y))
 		(i32.store offset=8 (local.get $i12) (local.get $f))
+
 		;; kaishichuli rules
 		(loop
 			$loop ;; woyaoyong return
@@ -209,24 +221,21 @@
 				(i32.eqz (local.get $i))
 				(then
 					(return (i32.add (local.get $PQlength) (i32.const 1)))))
+
 			(local.set
 				$j
 				(i32.div_u
 					(i32.sub (local.get $i) (i32.const 1))
 					(i32.const 2)))
-			;; (call $debug (i32.const -1))
-			;; (call $debug (local.get $i))
-			;; (call $debug (local.get $j))
-			(local.set
-				$i12
-				(i32.add
-					(local.get $PQstart)
-					(i32.mul (local.get $i) (i32.const 12))))
 			(local.set
 				$j12
 				(i32.add
 					(local.get $PQstart)
 					(i32.mul (local.get $j) (i32.const 12))))
+			;; (call $debug (i32.const -1))
+			;; (call $debug (local.get $i))
+			;; (call $debug (local.get $j))
+
 			;; (call $debug (i32.const -1))
 			;; (call $debug (local.get $i))
 			;; (call $debug (local.get $i12))
@@ -238,7 +247,9 @@
 					(i32.load offset=8 (local.get $j12)))
 				(then
 					(call $swap12 (local.get $i12) (local.get $j12))))
+
 			(local.set $i (local.get $j))
+			(local.set $i12 (local.get $j12))
 			(br $loop)))
 
 	(func
@@ -246,25 +257,27 @@
 		(param $PQstart i32)
 		(param $PQlength i32)
 		(result i32)
+
 		(local $i i32) ;; head
 		(local $i12 i32) ;; offset
 		(local $j i32) ;; head
 		(local $j12 i32) ;; offset
-		(local.set $i (i32.sub (local.get $PQlength) (i32.const 1)))
+
 		(local.set $PQlength (i32.sub (local.get $PQlength) (i32.const 1)))
 		(local.set
 			$i12
 			(i32.add
 				(local.get $PQstart)
-				(i32.mul (local.get $i) (i32.const 12))))
+				(i32.mul (local.get $PQlength) (i32.const 12))))
 		(call $swap12 (local.get $PQstart) (local.get $i12))
 
 		(local.set $i (i32.const 0))
-		(local.set
-			$i12
-			(i32.add
-				(local.get $PQstart)
-				(i32.mul (local.get $i) (i32.const 12))))
+		;;(local.set
+		;;	$i12
+		;;	(i32.add
+		;;		(local.get $PQstart)
+		;;		(i32.mul (local.get $i) (i32.const 12))))
+		(local.set $i12 (local.get $PQstart)) ;; $i = 0
 
 		(loop
 			$conti
@@ -277,14 +290,14 @@
 					(i32.const 1)))
 			;; (call $debug (local.get $j))
 			;; (call $debug (local.get $PQlength))
-			(local.set
-				$j12
-				(i32.add
-					(local.get $PQstart)
-					(i32.mul (local.get $j) (i32.const 12))))
 			(if
 				(i32.lt_u (local.get $j) (local.get $PQlength))
 				(then
+					(local.set
+						$j12
+						(i32.add
+							(local.get $PQstart)
+							(i32.mul (local.get $j) (i32.const 12))))
 					(if
 						(i32.lt_u
 							(i32.add (local.get $j) (i32.const 1))
@@ -297,6 +310,7 @@
 								(then
 									(local.set $j (i32.add (local.get $j) (i32.const 1)))
 									(local.set $j12 (i32.add (local.get $j12) (i32.const 12)))))))
+
 					(if
 						(i32.gt_u
 							(i32.load offset=8 (local.get $i12))
@@ -306,6 +320,7 @@
 					(local.set $i (local.get $j))
 					(local.set $i12 (local.get $j12))
 					(br $conti))))
+
 		(i32.add
 			(local.get $PQstart)
 			(i32.mul (local.get $PQlength) (i32.const 12))))
