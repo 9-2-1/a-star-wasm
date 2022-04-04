@@ -85,10 +85,10 @@
 	(import "debug" "debug" (func $debug (type $debugtype)))
 
 	;;全局变量
-	(global $mapX i32 (i32.const 0) (;地图长(1到4096);))
-	(global $mapY i32 (i32.const 0) (;地图长(1到4096);))
-	(global $pathStart i32 (i32.const 0) (;路线结果开始;))
-	(global $pathLength i32 (i32.const 0) (;路线结果长度;))
+	(global $mapX (export "mapX") (mut i32) (i32.const 0) (;地图长(1到4096);))
+	(global $mapY (export "mapY") (mut i32) (i32.const 0) (;地图长(1到4096);))
+	(global $pathStart (mut i32) (i32.const 0) (;路线结果开始;))
+	(global $pathLength (mut i32) (i32.const 0) (;路线结果长度;))
 
 	;; 准备好内存,里面的$memory可以不要
 	(memory
@@ -334,4 +334,169 @@
 		(i32.add
 			(local.get $PQstart)
 			(i32.mul (local.get $PQlength) (i32.const 12))))
+
+	;; 计算起点到终点的最短路径
+	;; @param {i32} startX 起始点X坐标
+	;; @param {i32} startY 起始点Y坐标
+	;; @param {i32} endX 终点X坐标
+	;; @param {i32} endY 终点Y坐标
+	;; @result {i32} 路线长度(-1失败)
+	(func
+		$a_star (export "a_star")
+		(param $startX i32) ;;参数
+		(param $startY i32)
+		(param $endX   i32)
+		(param $endY   i32)
+		(result i32) ;;返回值类型
+
+		(local $PQstart i32) ;;这里是一个x根堆
+		(local $PQlength i32)
+		(local $length i32) ;;保存格子里路线长度用的变量
+		(local $pos i32) ;; 格子数据位置
+		(local $x i32)
+		(local $y i32)
+		(local $x' i32)
+		(local $y' i32)
+		(local $i i32)
+		(local $cell i32) ;; 格子数据
+		(local $cellA i32) ;; A: 格子类型 (0墙 F路)
+		(local $cellB i32) ;; B: 路线类型，参考上文
+		(local $cellC i32) ;; C: 路线f(n)=g(n)+h(n)长度
+		(local $fn i32)
+		;;计算地图内存之后的位置，为了放置x根堆
+
+		(local.set
+			$PQstart
+			(i32.mul
+				(i32.mul (global.get $mapX) (global.get $mapY))
+				(i32.const 4)))
+
+		(call $debug (local.get $PQstart))
+		(if
+			(local.get $PQstart)
+			(then
+				(local.set $i (i32.const 0))
+				(loop
+					$clearLoop
+					(i32.store
+						(local.get $i)
+						(i32.or
+							(i32.const 0xffffff40)
+							(i32.and (i32.const 0xf) (i32.load (local.get $i)))))
+
+					(local.set
+						$i
+						(i32.add (local.get $i) (i32.const 4)))
+					(br_if $clearLoop (i32.lt_u (local.get $i) (local.get $PQstart))))))
+
+		(call $tell)
+		(local.set $PQlength (i32.const 0))
+
+		;; priorityQueue neibudigeshi
+		;; 12bit 1danwei
+		;; i32 i32 i32 - X Y Len+Dis
+
+		;; xianchushihua, baqidianzhijiejiajingqu
+		(call
+			$PQadd
+			(local.get $PQstart)
+			(local.get $PQlength)
+			(local.get $endX) ;;xian tui end
+			(local.get $endY)
+			(i32.const 0)) ;;len=0
+		(local.set
+			$PQlength
+			(i32.add (local.get $PQlength) (i32.const 1)))
+
+		(block
+			$loopBreak
+			(loop
+				$loopContinue
+				;; xunhuandebiaozunxiefa.
+				;; block yonglai daduanxunhuan
+				;; loop yonglai jiexuxunhuan
+
+				;; shouxian, quchuyouxuanjieguo
+				(local.set $pos (call $PQpick (local.get $PQstart) (local.get $PQlength)))
+				(local.set $endX (i32.load offset=0 (local.get $pos)))
+				(local.set $endY (i32.load offset=4 (local.get $pos)))
+				(local.set $length (i32.load offset=8 (local.get $pos)))
+
+				(local.set $x' (i32.const -1))
+				(loop
+					$loopX
+					(local.set $x (i32.add (local.get $endX) (local.get $x')))
+					(local.set $y' (i32.const -1))
+					(loop
+						$loopY
+						(local.set $y (i32.add (local.get $endY) (local.get $y')))
+
+						(local.set
+							$pos
+							(i32.mul (i32.add (i32.mul (local.get $y) (global.get $mapX)) (local.get $x)) (i32.const 4)))
+						(local.set $cell (i32.load (local.get $pos)))
+						;;(i32.load (local.get $cell) (local.get $pos))
+						(local.set $cellC (i32.shr_u (local.get $cell) (i32.const 8)))
+						(local.set
+							$cellB
+							(i32.or
+								(i32.const 0xf)
+								(i32.shr_u (local.get $cell) (i32.const 4))))
+						(local.set $cellA (i32.or (i32.const 0xf) (local.get $cell)))
+
+						(if
+							(i32.lt_u (local.get $fn) (local.get $cellC))
+							(then
+								(local.set
+									$cellB
+									(i32.or
+										(i32.const 0xf)
+										(i32.shr_u (local.get $cell) (i32.const 4))))
+								(local.set $cellA (i32.or (i32.const 0xf) (local.get $cell)))
+								(local.set
+									$cellB
+									(i32.sub
+										(i32.const 12)
+										(i32.add
+											(local.get $x')
+											(i32.mul (local.get $y') (i32.const 3)))))
+								(local.set $cellC (local.get $fn))
+								(i32.store
+									(local.get $pos)
+									(i32.or
+										(i32.or
+											(local.get $cellA)
+											(i32.shl (local.get $cellB) (i32.const 4)))
+										(i32.shl (local.get $cellC) (i32.const 8))))
+								(call
+									$PQadd
+									(local.get $PQstart)
+									(local.get $PQlength)
+									(local.get $endX) ;;xian tui end
+									(local.get $endY)
+									(i32.const 0)) ;;len=0
+								(local.set $PQlength (i32.add (local.get $PQlength) (i32.const 1)))))
+
+						(local.set $y' (i32.add (local.get $y') (i32.const 1)))
+						(br_if $loopY (i32.le_s (local.get $y') (i32.const 1))))
+
+					(local.set $x' (i32.add (local.get $x') (i32.const 1)))
+					(br_if $loopX (i32.le_s (local.get $x') (i32.const 1))))
+
+				(call
+					$PQadd
+					(local.get $PQstart)
+					(local.get $PQlength)
+					(local.get $endX)
+					(local.get $endY)
+					(i32.const 0)) ;;len=0
+
+				(br_if
+					$loopContinue
+					(local.get $PQlength))
+				;; budengyu0
+				))
+
+		;;(return (local.get $mapX))
+		(i32.const 0))
 	)
