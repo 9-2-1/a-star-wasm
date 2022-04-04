@@ -8,6 +8,7 @@
 ;; ----    ----
 ;; module  整个项目 (固定的，在最外面)
 ;; global  全局变量 (global $标记名 类型 初始值)
+;;           global默认是只读的，需要把类型调成(mut 类型)才能修改
 ;; memory  存储空间 (memory 最小空间页数 最大空间页数(可忽略)) 一页64KB
 ;; func    过程 (func $标记名 ...)
 ;; param   参数 (param $标记名 类型) 在func里用
@@ -18,7 +19,14 @@
 ;;             (export (内容name $标记名) "导出名字")
 ;;           也可以在内容里面
 ;;             (export "导出名字")
-;; table, data, elem, import没讲，因为我目前没有用它们
+;; import  导入标记 (import "主词条" "副词条" (name arg1...))
+;;           例如 (import "debug" "log" (func (type $logType)))
+;;                (import "info" "memory" (memory))
+;;                (import "config" "size" (global $configSize i32))
+;; type   定义函数类型(参数和返回)
+;;          (type $logType (param i32) (result))
+;;          -> (import "debug" "log" (func (type $logType)))
+;; table, data, elem没讲，因为我目前没有用它们
 
 ;; func内代码简介
 ;; 代码可以写成后缀表达式，也可以带括号写成前缀表达式，我比较喜欢带括号
@@ -92,14 +100,14 @@
 	;;   指定格子所在位置计算方法 (Y × 宽 + X) × 4
 	;; 内容格式：
 	;;  数字 = C × 2⁸ + B x 2⁴ + A × 2⁰ (十六进制0xCCCCCCBA)
-	;;  A: 格子的类型 (and 0xf0 rsh 4)
+	;;  A: 格子的类型 (and 0xf0 shr 4)
 	;;   0 墙 F 路 1到E 保留
 	;;  B: 计算的路线方向标记 (and 0xf)
 	;;   0↖ 1↑ 2↗
 	;;   3← 4⊙ 5→  9到F 不用 4代表没处理
 	;;   6↙ 7↓ 8↘
 	;;   ( X' = [A ÷ 3]↓ - 1, Y' = A % 3 - 1 )
-	;;  C: 格子目前的路线长度 (and 0xffffff00 rsh 8)
+	;;  C: 格子目前的路线长度 (and 0xffffff00 shr 8)
 	;;   由于地图大小限制，长度不会超过 0xffffff
 	;; 路线结果格式：
 	;;  从 路线结果开始 开始持续 路线结果长度 个
