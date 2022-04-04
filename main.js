@@ -31,7 +31,19 @@ let fs = require("fs");
 				console.log(x);
 			},
 			tell: function(){
-				console.log(memory);
+				for(let i=0;i<10;i++){
+					let str="";
+					for(let j=i*4;j<(i+1)*4;j++){
+						let out="";
+						let puz = memory[j];
+						for(let k=0;k<8;k++){
+							out="0123456789abcdef"[puz&0xF]+out;
+							puz>>=4;
+						}
+						str+="0x"+out+" ";
+					}
+					console.log(str);
+				}
 			}
 		}
 	};
@@ -58,7 +70,7 @@ let fs = require("fs");
 	}
 
 	//
-	if(true){
+	if(false){
 		instance = await WebAssembly.instantiate(wmodule, impor);
 		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("1",instance.exports.PQadd(0,0,1,2,3),undefined);
@@ -118,6 +130,21 @@ let fs = require("fs");
 			test("cp"+x,String(out),String(ans));
 		}
 	}
+
+	if(true){
+		instance = await WebAssembly.instantiate(wmodule, impor);
+		memory = new Uint32Array(instance.exports.memory.buffer);
+		test("1",instance.exports.growSize(4),1);
+		//console.log(require("util").inspect(instance.exports,true,null,true));
+		instance.exports.mapX.value = 2;
+		instance.exports.mapY.value = 2;
+		memory[0] = 0;
+		memory[1] = 0;
+		memory[2] = 0;
+		memory[3] = 0;
+		test(2,instance.exports.a_star(0,0,1,1),1);
+	}
+
 	// fs.writeFileSync("main.wat",module.toText({foldExprs: true, inlineExport: true}));
 	// module.destroy();
 }) () ;
