@@ -71,6 +71,8 @@
 
 (module
 	;;debug
+	(type $telltype (func (param) (result)))
+	(import "debug" "tell" (func $tell (type $telltype)))
 	(type $debugtype (func (param i32) (result)))
 	(import "debug" "debug" (func $debug (type $debugtype)))
 

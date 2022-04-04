@@ -24,10 +24,14 @@ let fs = require("fs");
 
 	let wmodule = await WebAssembly.compile(bin);
 	let instance;
+	let memory;
 	let impor = {
 		debug: {
 			debug: function(x){
 				console.log(x);
+			},
+			tell: function(){
+				console.log(memory);
 			}
 		}
 	};
@@ -35,6 +39,7 @@ let fs = require("fs");
 	// 测试 内存拓展
 	if(false){
 		instance = await WebAssembly.instantiate(wmodule, impor);
+		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("内存 1",instance.exports.getPage(),1);
 		test(2,instance.exports.growSize(1),1);
 		test(3,instance.exports.getPage(),1);
@@ -55,7 +60,7 @@ let fs = require("fs");
 	//
 	if(true){
 		instance = await WebAssembly.instantiate(wmodule, impor);
-		let memory = new Uint32Array(instance.exports.memory.buffer);
+		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("1",instance.exports.PQadd(0,0,1,2,3),undefined);
 		test(2,memory[0],1);
 		test(3,memory[1],2);
