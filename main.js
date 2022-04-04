@@ -25,9 +25,9 @@ let fs = require("fs");
 	let wmodule = await WebAssembly.compile(bin);
 	let instance;
 	let memory;
-	let impor = {
+	let wimport = {
 		debug: {
-			debug: function(x){
+			log: function(x){
 				console.log(x);
 			},
 			tell: function(){
@@ -50,7 +50,7 @@ let fs = require("fs");
 
 	// 测试 内存拓展
 	if(false){
-		instance = await WebAssembly.instantiate(wmodule, impor);
+		instance = await WebAssembly.instantiate(wmodule, wimport);
 		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("内存 1",instance.exports.getPage(),1);
 		test(2,instance.exports.growSize(1),1);
@@ -69,34 +69,35 @@ let fs = require("fs");
 		test(15,instance.exports.getPage(),100*1024*1024/65536);
 	}
 
-	//
+	// 小根堆测试
 	if(false){
-		instance = await WebAssembly.instantiate(wmodule, impor);
+		instance = await WebAssembly.instantiate(wmodule, wimport);
 		memory = new Uint32Array(instance.exports.memory.buffer);
-		test("1",instance.exports.PQadd(0,0,1,2,3),undefined);
+		test("小根堆 1",instance.exports.PQadd(0,0,1,2,3),undefined);
 		test(2,memory[0],1);
 		test(3,memory[1],2);
 		test(4,memory[2],3);
 		instance.exports.PQadd(16,0,1,1,1);
 		instance.exports.PQadd(16,1,2,2,2);
 		instance.exports.PQadd(16,2,3,3,3);
-		// console.log(memory);
+		// wimport.debug.tell();
 		let pos;
 		pos = instance.exports.PQpick(16,3);
 		test(5,memory[pos/4 + 0],1);
 		test(6,memory[pos/4 + 1],1);
 		test(7,memory[pos/4 + 2],1);
-		// console.log(memory);
+		// wimport.debug.tell();
 		pos = instance.exports.PQpick(16,2);
 		test(8,memory[pos/4 + 0],2);
 		test(9,memory[pos/4 + 1],2);
 		test(10,memory[pos/4 + 2],2);
-		// console.log(memory);
+		// wimport.debug.tell();
 		pos = instance.exports.PQpick(16,1);
 		test(11,memory[pos/4 + 0],3);
 		test(12,memory[pos/4 + 1],3);
 		test(13,memory[pos/4 + 2],3);
 
+		// 生成随机样例
 		for(let x=1;x<=50;x++){
 			let sample=[];
 			let out=[];
@@ -126,13 +127,14 @@ let fs = require("fs");
 			}
 			ans=sample.sort((a,b)=>a[2]-b[2]);
 			// console.log(String(sample));
-			// problem!
-			test("cp"+x,String(out),String(ans));
+			// 在第三个数有重复的时候有可能结果正确但是样例不会过，我目前还没做特判
+			test("样例"+x,String(out),String(ans));
 		}
 	}
 
+	// 寻路测试
 	if(true){
-		instance = await WebAssembly.instantiate(wmodule, impor);
+		instance = await WebAssembly.instantiate(wmodule, wimport);
 		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("1",instance.exports.growSize(4),1);
 		//console.log(require("util").inspect(instance.exports,true,null,true));
@@ -142,7 +144,7 @@ let fs = require("fs");
 		memory[1] = 0;
 		memory[2] = 0;
 		memory[3] = 0;
-		test(2,instance.exports.a_star(0,0,1,1),1);
+		test(2,instance.exports.a_star(0,0,1,1),2);
 	}
 
 	// fs.writeFileSync("main.wat",module.toText({foldExprs: true, inlineExport: true}));
