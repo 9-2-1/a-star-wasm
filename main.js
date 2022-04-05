@@ -15,10 +15,22 @@ let fs = require("fs");
 	// let module = wabt.readWasm(fs.readFileSync("main.wasm"), { readDebugNames: true});
 	let wast = fs.readFileSync("main.wast").toString();
 	let transfer = iconv.encode(wast, "ascii");
-	let module = wabt.parseWat("main.wast", transfer);
-	module.validate();
-
-	let bin = module.toBinary({}).buffer;
+	let module, result;
+	try{
+		module = wabt.parseWat("main.wast", transfer, {
+		});
+		module.validate();
+		result = module.toBinary({
+			log: false,
+			relocatable: true,
+			write_debug_names: true
+		});
+		console.log(result.log);
+	}catch(e){
+		console.log(e.message);
+		process.exit(1);
+	}
+	let bin = result.buffer;
 	module.destroy();
 	fs.writeFileSync("main.wasm",bin);
 
@@ -30,12 +42,13 @@ let fs = require("fs");
 			log: function(x){
 				console.log(x);
 			},
-			tell: function(){
+			tell: function(x){
+				console.log(x + " ->");
 				for(let i=0;i<10;i++){
 					let str="";
 					for(let j=i*4;j<(i+1)*4;j++){
 						let out="";
-						let puz = memory[j];
+						let puz = memory[x/4+j];
 						for(let k=0;k<8;k++){
 							out="0123456789abcdef"[puz&0xF]+out;
 							puz>>=4;
@@ -138,8 +151,7 @@ let fs = require("fs");
 		memory = new Uint32Array(instance.exports.memory.buffer);
 		test("1",instance.exports.growSize(4),1);
 		//console.log(require("util").inspect(instance.exports,true,null,true));
-		instance.exports.mapX.value = 2;
-		instance.exports.mapY.value = 2;
+		instance.exports.init(2,2);
 		memory[0] = 0;
 		memory[1] = 0;
 		memory[2] = 0;

@@ -16,13 +16,14 @@
 ;;result  设定返回值类型 (result 类型) 在func里用
 ;;export  导出标记
 ;;          可以在 module 里面单独
-;;            (export (内容name $标记名) "导出名字")
+;;            (export "导出名字" (内容name $标记名))
 ;;          也可以在内容里面
 ;;            (export "导出名字")
 ;;import  导入标记 (import "主词条" "副词条" (name arg1...))
-;;          例如 (import "debug" "log" (func (type $logType)))
-;;               (import "info" "memory" (memory))
-;;               (import "config" "size" (global $configSize i32))
+;;          可以在 module 里面单独
+;;            (import "外名字" "内名字" (内容name $标记名))
+;;          也可以在内容里面
+;;            (import "外名字" "内名字")
 ;;type   定义函数类型(参数和返回)
 ;;         (type $logType (param i32) (result))
 ;;         -> (import "debug" "log" (func (type $logType)))
@@ -79,10 +80,8 @@
 
 (module
 	;;调试用的函数
-	(type $tellType (func (param i32)))
-	(import "debug" "tell" (func $tell (type $tellType)))
-	(type $logType (func (param i32)))
-	(import "debug" "log" (func $log (type $logType)))
+	(func $tell (import "debug" "tell") (param i32))
+	(func $log (import "debug" "log") (param i32))
 
 	;;全局变量
 	(global $mapX (export "mapX") (mut i32) (i32.const 0)) ;;地图长(1到4096)
@@ -91,6 +90,7 @@
 	(global $diStart (mut i32) (i32.const 0)) ;;方向数据起点位置
 	(global $gnStart (mut i32) (i32.const 0)) ;;g(n)数据起点位置
 	(global $fnStart (mut i32) (i32.const 0)) ;;f(n)数据起点位置
+	(global $pqStart (mut i32) (i32.const 0)) ;;小根堆起点位置
 	(global $pathStart (mut i32) (i32.const 0)) ;;路线结果开始
 	(global $pathLength (mut i32) (i32.const 0)) ;;路线结果长度
 
@@ -150,9 +150,7 @@
 		;;add 加 sub 减 mul 乘 div_o 除 rem_o 余数
 		;;(o为 s:有符号 u:无符号, 在浮点数类型不需要_o，因为浮点数有符号)
 
-		(local.set
-			$origSize
-			(memory.size)) ;;获得原有页数
+		(local.set $origSize (memory.size)) ;;获得原有页数
 
 		(if
 			(i32.lt_u (local.get $origSize) (local.get $size))
@@ -172,35 +170,36 @@
 		;;处于func最后的return可以省略
 		(i32.const 1))
 
-	;;蓝色的格子是要搜索的格子，原定计划是把它们加入一个列表，然后每次循环扫描一遍列表，但是考虑到这个项目给某个社区用了之后可能被某个群的大佬们反编译挂上去当成“傻x设计”打靶，因此我在这里实现了一个小根堆，它可以以log n的速度快速添加元素或者取出最小的元素，非常的快。
+	;;蓝色的格子是要搜索的格子，原定计划是把它们加入一个列表，然后每次循环扫描一遍列表。我在这里实现了一个小根堆，它可以以log n的速度快速添加元素或者取出最小的元素，非常的快。
 	;;小根堆的内容格式: 正常的小根堆是n个数字，我这里把单个数字换成3个连续数字一组，比较已最后一个数字为准
 	;;前两个数字分别代表x,y坐标，后面的数字是f(n)，每次这些都成组加入，成组排序，成组获取。
 
 	;;交换两个长12个字节的区域，也就是3个i32的内容
-	;;@param {i32} i12 - 第一个区域起点
-	;;@param {i32} j12 - 第二个区域起点
+	;;@param {i32} iPos - 第一个区域起点
+	;;@param {i32} jPos - 第二个区域起点
 	(func
 		$swap12 (export "swap12")
-		(param $i12 i32)
-		(param $j12 i32)
+		(param $iPos i32)
+		(param $jPos i32)
 
 		;;用于交换的临时变量
 		(local $sw1 i64)
 		(local $sw2 i32)
 
 		;;这里用的基本交换方法：tmp = i; i = j; j = tmp;
-		(local.set $sw1 (i64.load offset=0 (local.get $i12)))
-		(local.set $sw2 (i32.load offset=8 (local.get $i12)))
-
 		;;有一个技巧：前两个i32被当成了一个i64直接交换，会快一点
-		(i64.store offset=0 (local.get $i12) (i64.load offset=0 (local.get $j12)))
+		(local.set $sw1 (i64.load offset=0 (local.get $iPos)))
+		(local.set $sw2 (i32.load offset=8 (local.get $iPos)))
+
+		(i64.store offset=0 (local.get $iPos) (i64.load offset=0 (local.get $jPos)))
 		;;这里可以用offset代替一个add
-		(i32.store offset=8 (local.get $i12) (i32.load offset=8 (local.get $j12)))
+		(i32.store offset=8 (local.get $iPos) (i32.load offset=8 (local.get $jPos)))
 
-		(i64.store offset=0 (local.get $j12) (local.get $sw1))
-		(i32.store offset=8 (local.get $j12) (local.get $sw2)))
+		(i64.store offset=0 (local.get $jPos) (local.get $sw1))
+		(i32.store offset=8 (local.get $jPos) (local.get $sw2)))
 
-	;;插入数据到小根堆
+	;;插入数据到小根堆并返回小根堆新的长度。
+	;;使用前请保证内存分配合理，使用不当可能会覆盖其他数据。
 	;;@param {i32} PQstart - 小根堆起点
 	;;@param {i32} PQlength - 小根堆长度(以一组数据为单位)
 	;;@param {i32} x - 格子x坐标
@@ -227,94 +226,124 @@
 		(result i32)
 
 		(local $i i32) ;;目标序号(等一会要判断交换)
-		(local $i12 i32) ;;目标位置
+		(local $iPos i32) ;;目标位置
 		(local $j i32) ;;交换序号
-		(local $j12 i32) ;;交换位置
+		(local $jPos i32) ;;交换位置
 
 		;;(call $log (i32.const 1))
+		;;这里先准备把新数据追加到末尾，计算末尾的位置
 		(local.set $i (local.get $PQlength))
-		;;cheng 12
+		;; iPos = PQstart + i x 12
 		(local.set
-			$i12
+			$iPos
 			(i32.add
 				(local.get $PQstart)
 				(i32.mul (local.get $i) (i32.const 12))))
 
-		;;baocundaozuihoumian
-		(i32.store offset=0 (local.get $i12) (local.get $x))
-		(i32.store offset=4 (local.get $i12) (local.get $y))
-		(i32.store offset=8 (local.get $i12) (local.get $f))
+		;;在末尾写入新数据(x,y,f)
+		(i32.store offset=0 (local.get $iPos) (local.get $x))
+		(i32.store offset=4 (local.get $iPos) (local.get $y))
+		(i32.store offset=8 (local.get $iPos) (local.get $f))
 
-		;;kaishichuli rules
-		(loop
-			$loop ;;woyaoyong return
-			(if
-				(i32.eqz (local.get $i))
-				(then
-					(return (i32.add (local.get $PQlength) (i32.const 1)))))
+		;;现在开始保证规则：序号x的数据一定比序号2x+1和2x+2的数据小
+		(block
+			$fixBreak ;;block是后跳标记，之后用(br $fixBreak)会跳到block的后面)
+			(loop
+				$fixConti ;;loop是前跳标记，之后用(br $fixConti)会跳到loop的前面
+				;;如果i等于0，说明已经到达头部扫描成功无需继续，直接退出循环
+				(if
+					(i32.eqz (local.get $i))
+					(then
+						(br $fixBreak)))
 
-			(local.set
-				$j
-				(i32.div_u
-					(i32.sub (local.get $i) (i32.const 1))
-					(i32.const 2)))
-			(local.set
-				$j12
-				(i32.add
-					(local.get $PQstart)
-					(i32.mul (local.get $j) (i32.const 12))))
-			;;(call $log (i32.const -1))
-			;;(call $log (local.get $i))
-			;;(call $log (local.get $j))
+				;;这里i是2x+1或2x+2，j是x，用i反推j
+				;;j = [(i - 1) / 2]↓
+				(local.set
+					$j
+					(i32.div_u
+						(i32.sub (local.get $i) (i32.const 1))
+						(i32.const 2)))
+				;;计算j的位置
+				(local.set
+					$jPos
+					(i32.add
+						(local.get $PQstart)
+						(i32.mul (local.get $j) (i32.const 12))))
+				;;(call $log (i32.const -1))
+				;;(call $log (local.get $i))
+				;;(call $log (local.get $j))
 
-			;;(call $log (i32.const -1))
-			;;(call $log (local.get $i))
-			;;(call $log (local.get $i12))
-			;;(call $log (local.get $j))
-			;;(call $log (local.get $j12))
-			(if
-				(i32.lt_u
-					(i32.load offset=8 (local.get $i12))
-					(i32.load offset=8 (local.get $j12)))
-				(then
-					(call $swap12 (local.get $i12) (local.get $j12))))
+				;;(call $log (i32.const -1))
+				;;(call $log (local.get $i))
+				;;(call $log (local.get $iPos))
+				;;(call $log (local.get $j))
+				;;(call $log (local.get $jPos))
 
-			(local.set $i (local.get $j))
-			(local.set $i12 (local.get $j12))
-			(br $loop))
-		(unreachable))
+				;;如果不符合规则
+				(if
+					(i32.lt_u
+						(i32.load offset=8 (local.get $iPos))
+						(i32.load offset=8 (local.get $jPos)))
+					(then ;;就交换ij，使其符合规则，最多需要调整log2PQlength次
+						(call $swap12 (local.get $iPos) (local.get $jPos))
+						;;i变j，检查换上去的j是否符合规则
+						(local.set $i (local.get $j))
+						(local.set $iPos (local.get $jPos))
+						;;注意这里的br在if里，意味着如果符合规则，循环就会自然退出
+						(br $fixConti)))))
+		;;返回长度加一
+		(i32.add (local.get $PQlength) (i32.const 1)))
 
+	;;从小根堆拿出f(n)最小的数据并返回拿出的数据所在的位置。
+	;;注意拿出后将不在堆里面，记得拿出之后要自己把堆长度减去一。
+	;;@param {i32} PQstart - 小根堆起点
+	;;@param {i32} PQlength - 小根堆长度(以一组数据为单位)
+	;;@return {i32} 返回拿出的数据所在的位置
+	;;@example
+	;;(local.set
+	;;  $pos
+	;;  (call $PQpick (local.get $PQstart) (local.get $PQlength)))
+	;;(i32.load offset=0 $x (local.get $pos))
+	;;(i32.load offset=4 $y (local.get $pos))
+	;;(i32.load offset=8 $f (local.get $pos))
+	;;(local.set $PQlength (i32.sub (local.get $PQlength) (i32.const 1)))
 	(func
 		$PQpick (export "PQpick")
 		(param $PQstart i32)
 		(param $PQlength i32)
 		(result i32)
 
-		(local $i i32) ;;head
-		(local $i12 i32) ;;offset
-		(local $j i32) ;;head
-		(local $j12 i32) ;;offset
+		(local $i i32)
+		(local $iPos i32)
+		(local $j i32)
+		(local $jPos i32)
 
+		;;eqz可以检测数字是否等于0，如果想检测不等于0，去掉(i32.eqz)即可，因为if的默认行为是在数字不等于0时成立
+		;;unreachable会让程序直接报错，类似经典asm("int3")或者throw
+		;;这一句是测试的时候用的
+		(call $log (local.get $PQlength))
+		(if (i32.eqz (local.get $PQlength)) (then (unreachable)))
+
+		;;把长度减去1，计算最后一项的位置(没问题)
 		(local.set $PQlength (i32.sub (local.get $PQlength) (i32.const 1)))
 		(local.set
-			$i12
+			$iPos
 			(i32.add
 				(local.get $PQstart)
 				(i32.mul (local.get $PQlength) (i32.const 12))))
-		(call $swap12 (local.get $PQstart) (local.get $i12))
+		;;把第一项和最后一项交换，这样最小的那一项会到最后面。而且因为项目数减了一，这一项在接下来的部分不会被调整。
+		(call $swap12 (local.get $PQstart) (local.get $iPos))
 
+		;;这一次要从第0项开始应用规则
 		(local.set $i (i32.const 0))
-		;;(local.set
-		;;	$i12
-		;;	(i32.add
-		;;		(local.get $PQstart)
-		;;		(i32.mul (local.get $i) (i32.const 12))))
-		(local.set $i12 (local.get $PQstart)) ;;$i = 0
+		;;第0项就不需要乘法加法了
+		(local.set $iPos (local.get $PQstart))
 
 		(loop
 			$conti
 			;;(call $log (i32.const 667788))
 			;;(call $log (local.get $i))
+			;;先算出2i+1的值
 			(local.set
 				$j
 				(i32.add
@@ -322,40 +351,122 @@
 					(i32.const 1)))
 			;;(call $log (local.get $j))
 			;;(call $log (local.get $PQlength))
+			;;检查2i+1项是否存在
 			(if
 				(i32.lt_u (local.get $j) (local.get $PQlength))
 				(then
+					;;先行计算2i+1项的位置
 					(local.set
-						$j12
+						$jPos
 						(i32.add
 							(local.get $PQstart)
 							(i32.mul (local.get $j) (i32.const 12))))
+					;;检查2i+2项是否存在
 					(if
 						(i32.lt_u
 							(i32.add (local.get $j) (i32.const 1))
 							(local.get $PQlength))
 						(then
+							;;检查第2i+1项和第2i+2项哪个更小
 							(if
-								(i32.gt_u
-									(i32.load offset=8  (local.get $j12))
-									(i32.load offset=20 (local.get $j12))) ;;8+12
+								(i32.lt_u
+									;;这里用offset=20=8+12来获得第2i+2项的fn值，省去加法乘法
+									(i32.load offset=20 (local.get $jPos))
+									(i32.load offset=8  (local.get $jPos)))
 								(then
+									;;如果2i+2项存在且更小，就检查2i+2项。
 									(local.set $j (i32.add (local.get $j) (i32.const 1)))
-									(local.set $j12 (i32.add (local.get $j12) (i32.const 12)))))))
+									;;直接加12,不重新计算
+									(local.set $jPos (i32.add (local.get $jPos) (i32.const 12)))))))
 
+					;;如果i项较大，就和2i+1,2i+2项中存在且较小项交换并继续检查
 					(if
 						(i32.gt_u
-							(i32.load offset=8 (local.get $i12))
-							(i32.load offset=8 (local.get $j12)))
+							(i32.load offset=8 (local.get $iPos))
+							(i32.load offset=8 (local.get $jPos)))
 						(then
-							(call $swap12 (local.get $i12) (local.get $j12))))
-					(local.set $i (local.get $j))
-					(local.set $i12 (local.get $j12))
-					(br $conti))))
+							(call $swap12 (local.get $iPos) (local.get $jPos))
+							(local.set $i (local.get $j))
+							(local.set $iPos (local.get $jPos))
+							(br $conti))))))
 
+		;;计算PQstart项，也就是之前被交换的第0项的位置，也就是要取出的数据。
 		(i32.add
 			(local.get $PQstart)
 			(i32.mul (local.get $PQlength) (i32.const 12))))
+
+	;;初始化内存空间
+	;;@param {i32} x - 地图宽
+	;;@param {i32} y - 地图高
+	;;@return {i32} 1 成功 0 失败
+	(func
+		$init (export "init")
+		(param $x i32)
+		(param $y i32)
+		(result i32)
+		;;计算地图内存之后的位置，为了放置数据和小根堆
+		;;有5个东西要安排，大小都是mapX x mapY x 4个字节。
+		;;(global $mapStart (mut i32) (i32.const 0)) ;;原地图数据起点位置
+		;;(global $diStart (mut i32) (i32.const 0)) ;;方向数据起点位置
+		;;(global $gnStart (mut i32) (i32.const 0)) ;;g(n)数据起点位置
+		;;(global $fnStart (mut i32) (i32.const 0)) ;;f(n)数据起点位置
+
+		(global.set $mapX (local.get $x))
+		(global.set $mapY (local.get $y))
+		;;因为默认值是0，所以不用改
+		;;(global.set $mapStart (i32.const 0))
+		(global.set
+			$diStart
+			(i32.mul
+				(i32.mul (local.get $x) (local.get $y)
+				(i32.const 4))))
+		;;因为除了pqStart之外每个部分大小一样，接下来可以直接乘
+		(global.set $fnStart (i32.mul (global.get $diStart) (i32.const 2)))
+		(global.set $gnStart (i32.mul (global.get $diStart) (i32.const 3)))
+		(global.set $pqStart (i32.mul (global.get $diStart) (i32.const 4)))
+		;;这里预计小根堆最多会包含4 x max{x,y}组数据，具体过程诶嘿
+		;;最后grow一下并返回grow的结果
+		(call
+			$growSize
+			(i32.add
+				(i32.mul (global.get $diStart) (i32.const 4))
+				(i32.mul
+					(select ;;select相当于?:三目运算符
+						(i32.gt_u (local.get $x) (local.get $y))
+						(local.get $x) (local.get $y))
+					(i32.const 48)))));;12x4,12是每一组数据的的字节数
+
+	;;填充内存(代替memory.fill)
+	;;@param {i32} start 起始点
+	;;@param {i32} val 要填充的i32(注意是整个i32循环填充，和原版memory.fill不一样)
+	;;@param {i32} length 填充长度，必须是4的倍数
+	(func
+		$memset
+		(param $start i32)
+		(param $val i32)
+		(param $length i32)
+
+		;;如果长度不是4的倍数，就报错
+		;;rem_u是无符号取余数
+		(if
+			(i32.rem_u (local.get $length) (i32.const 4))
+			(unreachable))
+
+		;;循环设置内容
+		(block
+			$setBreak
+			(loop
+				$setConti
+				;;如果长度为0，就结束
+				(br_if $setBreak (i32.eqz (local.get $length)))
+
+				(call $log (local.get $start))
+				(i32.store (local.get $start) (local.get $val))
+
+				;;这里把起点+4，长度-4，到达下一项
+				(local.set $start (i32.add (local.get $start) (i32.const 4)))
+				(local.set $length (i32.sub (local.get $length) (i32.const 4)))
+				(br $setConti))))
 
 	;;计算起点到终点的最短路径
 	;;@param {i32} startX 起始点X坐标
@@ -367,83 +478,136 @@
 		$a_star (export "a_star")
 		(param $startX i32) ;;参数
 		(param $startY i32)
-		(param $endX   i32)
+		(param $endX   i32) ;;终点坐标，后面变成下一个格子的坐标
 		(param $endY   i32)
 		(result i32) ;;返回值类型
 
-		(local $PQstart i32) ;;这里是一个x根堆
-		(local $PQlength i32)
+		(local $pqLength i32) ;;小根堆项目数
 		(local $length i32) ;;保存格子里路线长度用的变量
 		(local $pos i32) ;;格子数据位置
-		(local $x i32)
+		(local $x i32) ;;格子坐标
 		(local $y i32)
-		(local $x' i32)
+		(local $dx i32) ;;格子距离
+		(local $dy i32)
+		(local $x' i32) ;;前进方向
 		(local $y' i32)
 		(local $i i32)
-		(local $cell i32) ;;格子数据
-		(local $cellA i32) ;;A: 格子类型 (0墙 F路)
-		(local $cellB i32) ;;B: 路线类型，参考上文
-		(local $cellC i32) ;;C: 路线f(n)=g(n)+h(n)长度
-		(local $fn i32)
-		;;计算地图内存之后的位置，为了放置x根堆
+		(local $c i32) ;;格子类型
+		(local $fn i32) ;;格子预估总路线f(n)长度
+		(local $gn i32) ;;格子路线g(n)长度
+		(local $hn i32) ;;格子预估路线h(n)长度
 
+		;;初始化指向区域为0
+		(call $memset ;;填充区域
+			(global.get $diStart);;起点
+			(i32.const 0);;数值
+			(global.get $diStart));;长度
+		;;初始化距离区域为0xffffffff(无符号最大i32数)
+		(call $memset
+			(global.get $fnStart)
+			(i32.const 0xffffffff)
+			(i32.mul (global.get $diStart) (i32.const 2)))
+
+		(call $tell (global.get $mapStart))
+		(call $tell (global.get $diStart))
+		(call $tell (global.get $fnStart))
+		(call $tell (global.get $gnStart))
+		(call $tell (global.get $pqStart))
+
+		;;一开始小根堆没有东西，长度是0
+		(local.set $pqLength (i32.const 0))
+
+		;;先计算终点f(n)，把终点加入小根堆里面
 		(local.set
-			$PQstart
+			$pos
 			(i32.mul
-				(i32.mul (global.get $mapX) (global.get $mapY))
-				(i32.const 4)))
-
-		(call $log (local.get $PQstart))
+				(i32.const 4)
+				(i32.add
+					(i32.mul (local.get $endY) (global.get $mapX))
+					(local.get $endX)))) ;;终点数据位置
+		(i32.store
+			(i32.add (global.get $diStart) (local.get $pos))
+			(i32.const 4)) ;;4表示到达终点
+		;;计算估计距离h(n), 也就是没有墙的时候两点间的最短距离
+		;;因为能走对角线，所以计算估计距离h(n) = max{|endX - startX|, |endY - startY|}
+		(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
 		(if
-			(local.get $PQstart)
+			(i32.lt_s (local.get $dx) (i32.const 0))
 			(then
-				(local.set $i (i32.const 0))
-				(loop
-					$clearLoop
-					(i32.store
-						(local.get $i)
-						(i32.or
-							(i32.const 0xffffff40)
-							(i32.and (i32.const 0xf) (i32.load (local.get $i)))))
-
-					(local.set
-						$i
-						(i32.add (local.get $i) (i32.const 4)))
-					(br_if $clearLoop (i32.lt_u (local.get $i) (local.get $PQstart))))))
-
-		(call $tell)
-		(local.set $PQlength (i32.const 0))
-
-		;;priorityQueue neibudigeshi
-		;;12bit 1danwei
-		;;i32 i32 i32 - X Y Len+Dis
-
-		;;xianchushihua, baqidianzhijiejiajingqu
-		(call
-			$PQadd
-			(local.get $PQstart)
-			(local.get $PQlength)
-			(local.get $endX) ;;xian tui end
-			(local.get $endY)
-			(i32.const 0));;len=0
+				(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
+		(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
+		(if
+			(i32.lt_s (local.get $dy) (i32.const 0))
+			(then
+				(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
 		(local.set
-			$PQlength
-			(i32.add (local.get $PQlength) (i32.const 1)))
+			$hn
+			(select
+				(i32.gt_u (local.get $dx) (local.get $dy))
+				(local.get $dx) (local.get $dy)))
+		(i32.store
+			(i32.add (global.get $fnStart) (local.get $pos))
+			(local.get $hn)) ;;终点f(n)是估计距离h(n)
+		(i32.store
+			(i32.add (global.get $gnStart) (local.get $pos))
+			(i32.const 0)) ;;终点g(n)当然是0
 
+		;;把终点加入小根堆
+		(local.set
+			$pqLength
+			(call
+				$PQadd
+				(global.get $pqStart)
+				(local.get $pqLength)
+				(local.get $endX)
+				(local.get $endY)
+				(local.get $fn)))
+
+		(call $log (local.get $pqLength))
+		;;现在是主要的循环，关于循环请参考上文
 		(block
 			$loopBreak
 			(loop
-				$loopContinue
-				;;xunhuandebiaozunxiefa.
-				;;block yonglai daduanxunhuan
-				;;loop yonglai jiexuxunhuan
+				$loopConti
 
-				;;shouxian, quchuyouxuanjieguo
-				(local.set $pos (call $PQpick (local.get $PQstart) (local.get $PQlength)))
+				;;如果pqLength等于0，就退出
+				(br_if $loopBreak (i32.eqz (local.get $pqLength)))
+		(call $log (local.get $pqLength))
+				;;首先获得堆里f(n)最小的点，此时pos是堆操作返回的位置
+				(local.set $pos (call $PQpick (global.get $pqStart) (local.get $pqLength)))
+				;;别忘了要把pqLength减去1
+				(local.set $pqLength (i32.sub (local.get $pqLength) (i32.const 1)))
+				;;此时endX,endY变成了当前点的坐标
 				(local.set $endX (i32.load offset=0 (local.get $pos)))
 				(local.set $endY (i32.load offset=4 (local.get $pos)))
-				(local.set $length (i32.load offset=8 (local.get $pos)))
+				(local.set $fn (i32.load offset=8 (local.get $pos)))
 
+				;;此处pos换成当前点的数据所在位置
+				(local.set
+					$pos
+					(i32.mul
+						(i32.const 4)
+						(i32.add
+							(i32.mul (local.get $endY) (global.get $mapX))
+							(local.get $endX))))
+
+				;;获取这个点标记的f(n)值，如果f(n)值和堆里记录的f(n)值不同
+				;;就意味着这个点被更小的值更新过，这个记录可以忽略
+				(br_if
+					$loopConti ;;如果不一样，回到循环开始处处理下一个
+					(i32.ne
+						(i32.load (i32.add (global.get $fnStart) (local.get $pos)))
+						(local.get $fn)))
+
+				;;计算下一个点g(n)值：这个点的g(n)值加上1
+				(local.set
+					$gn
+					(i32.add
+						(i32.const 1)
+						(i32.load
+							(i32.add (global.get $gnStart) (local.get $pos)))))
+
+				;;用$x,$y获得所有可用方向
 				(local.set $x' (i32.const -1))
 				(loop
 					$loopX
@@ -453,52 +617,68 @@
 						$loopY
 						(local.set $y (i32.add (local.get $endY) (local.get $y')))
 
-						(local.set
-							$pos
-							(i32.mul (i32.add (i32.mul (local.get $y) (global.get $mapX)) (local.get $x)) (i32.const 4)))
-						(local.set $cell (i32.load (local.get $pos)))
-						;;(i32.load (local.get $cell) (local.get $pos))
-						(local.set $cellC (i32.shr_u (local.get $cell) (i32.const 8)))
-						(local.set
-							$cellB
-							(i32.or
-								(i32.const 0xf)
-								(i32.shr_u (local.get $cell) (i32.const 4))))
-						(local.set $cellA (i32.or (i32.const 0xf) (local.get $cell)))
-
-						(if
-							(i32.lt_u (local.get $fn) (local.get $cellC))
+						;;检查坐标是否在地图里
+						(if (i32.ge_s (local.get $endX) (i32.const 0))
 							(then
-								(local.set
-									$cellB
-									(i32.or
-										(i32.const 0xf)
-										(i32.shr_u (local.get $cell) (i32.const 4))))
-								(local.set $cellA (i32.or (i32.const 0xf) (local.get $cell)))
-								(local.set
-									$cellB
-									(i32.sub
-										(i32.const 12)
-										(i32.add
-											(local.get $x')
-											(i32.mul (local.get $y') (i32.const 3)))))
-								(local.set $cellC (local.get $fn))
-								(i32.store
-									(local.get $pos)
-									(i32.or
-										(i32.or
-											(local.get $cellA)
-											(i32.shl (local.get $cellB) (i32.const 4)))
-										(i32.shl (local.get $cellC) (i32.const 8))))
-								(local.set
-									$PQlength
-									(call
-										$PQadd
-										(local.get $PQstart)
-										(local.get $PQlength)
-										(local.get $endX) ;;xian tui end
-										(local.get $endY)
-										(i32.const 0))))) ;;len=0
+								(if (i32.ge_s (local.get $endY) (i32.const 0))
+									(then
+										(if (i32.lt_s (local.get $endX) (global.get $mapX))
+											(then
+												(if (i32.lt_s (local.get $endY) (global.get $mapY))
+													(then
+
+														;;目标点的位置
+														(local.set
+															$pos
+															(i32.mul
+																(i32.const 4)
+																(i32.add
+																	(i32.mul (local.get $y) (global.get $mapX))
+																	(local.get $x))))
+
+														;;如果目标点g(n)小于当前g(n),就更新
+														;;因为对同一个点h(n)一定相同
+														;;所以可以认为f(n)也小于当前f(n)，可以省去一步计算
+														(if
+															(i32.lt_u
+																(local.get $gn)
+																(i32.load (i32.add (global.get $gnStart) (local.get $pos))))
+															(then
+																;;计算估计距离h(n)
+																(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
+																(if
+																	(i32.lt_s (local.get $dx) (i32.const 0))
+																	(then
+																		(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
+																(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
+																(if
+																	(i32.lt_s (local.get $dy) (i32.const 0))
+																	(then
+																		(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
+																(local.set
+																	$hn
+																	(select
+																		(i32.gt_u (local.get $dx) (local.get $dy))
+																		(local.get $dx) (local.get $dy)))
+																(local.set $fn (i32.add (local.get $gn) (local.get $hn)))
+																(i32.store
+																	(i32.add (global.get $fnStart) (local.get $pos))
+																	(local.get $fn))
+																(i32.store
+																	(i32.add (global.get $gnStart) (local.get $pos))
+																	(local.get $gn))
+																(local.set
+																	$pqLength
+																	(call
+																		$PQadd
+																		(global.get $pqStart)
+																		(local.get $pqLength)
+																		(local.get $endX)
+																		(local.get $endY)
+																		(local.get $fn)))))
+
+														;;这8个括号用来应对之前的4个如果
+														))))))))
 
 						(local.set $y' (i32.add (local.get $y') (i32.const 1)))
 						(br_if $loopY (i32.le_s (local.get $y') (i32.const 1))))
@@ -506,22 +686,8 @@
 					(local.set $x' (i32.add (local.get $x') (i32.const 1)))
 					(br_if $loopX (i32.le_s (local.get $x') (i32.const 1))))
 
-				(local.set
-					$PQlength
-					(call
-						$PQadd
-						(local.get $PQstart)
-						(local.get $PQlength)
-						(local.get $endX)
-						(local.get $endY)
-						(i32.const 0))) ;;len=0
+				(br $loopConti)))
 
-				(br_if
-					$loopContinue
-					(local.get $PQlength))
-				;;budengyu0
-				))
-
-		;;(return (local.get $mapX))
-		(i32.const 0))
+		;;从这里出来代表寻路失败
+		(i32.const -1))
 	)
