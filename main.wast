@@ -602,6 +602,14 @@
 				(local.set $endY (i32.load offset=4 (local.get $pos)))
 				(local.set $fn (i32.load offset=8 (local.get $pos)))
 
+				;;如果到达了起点，就跳到循环末尾处理路线
+				(if
+					(i32.eq (local.get $startX) (local.get $endX))
+					(then
+						(if
+							(i32.eq (local.get $startY) (local.get $endY))
+							(then
+								(br $loopBreak)))))
 				;;(call $log (i32.const 99000099))
 				;;(call $log (local.get $endX))
 				;;(call $log (local.get $endY))
@@ -722,15 +730,6 @@
 																			(i32.add (global.get $gnStart) (local.get $pos))
 																			(local.get $gn))
 
-																		;;如果到达了起点，就跳到循环末尾处理路线
-																		(if
-																			(i32.eq (local.get $startX) (local.get $x))
-																			(then
-
-																				(if
-																					(i32.eq (local.get $startY) (local.get $y))
-																					(then
-																						(br $loopBreak)))))
 																		;;否则把点保存到小根堆，继续循环
 																		(local.set
 																			$pqLength

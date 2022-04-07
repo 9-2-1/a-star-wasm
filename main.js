@@ -292,7 +292,7 @@ let fs = require("fs");
 		test(4, instance.exports.a_star(0, 0, 0, 2), 5);
 		pathWrite();*/
 
-		for (let x = 1; x <= 200; x++) {
+		for (let x = 1; x <= 3000; x++) {
 			let mapX = Math.floor(Math.random() * 50 + 1);
 			let mapY = Math.floor(Math.random() * 50 + 1);
 			let c = instance.exports.init(mapX, mapY);
