@@ -36,7 +36,7 @@ let fs = require("fs");
 				return d;
 			}
 			cycle.splice(0, 2);
-				let z = [-1, 0, -1, 1, 0, 1, 1, 1, 1, 0, 1, -1, 0, -1, -1, -1];
+			let z = [-1, 0, -1, 1, 0, 1, 1, 1, 1, 0, 1, -1, 0, -1, -1, -1];
 			for (let a = 0; a < 16; a += 2) {
 				let x0 = x + z[a];
 				let y0 = y + z[a + 1];
@@ -101,14 +101,16 @@ let fs = require("fs");
 					console.log(str);
 				}
 			},
-			inspect: function() {
+			inspect: function(x1, y1, x2, y2, path) {
 				let mapX = instance.exports.mapX.value;
 				let mapY = instance.exports.mapY.value;
 				let mapStart = instance.exports.mapStart.value / 4;
 				let diStart = instance.exports.diStart.value / 4;
 				let fnStart = instance.exports.fnStart.value / 4;
 				let gnStart = instance.exports.gnStart.value / 4;
-				console.log("map");
+				//console.log("map");
+				//console.log(mapStart,diStart,fnStart,gnStart);
+				//console.log(memory);
 				for (let y = 0; y < mapY; y++) {
 					let str = "";
 					for (let x = 0; x < mapX; x++) {
@@ -148,6 +150,27 @@ let fs = require("fs");
 							("  " + memory[gnStart + y * mapX + x]).slice(-2));
 					}
 					console.log(str);
+				}
+				if (arguments.length !== 0) {
+					console.log("path");
+					let disp = [];
+					for (let y = 0; y < mapY; y++) {
+						disp.push([]);
+						for (let x = 0; x < mapX; x++) {
+							disp[y].push(
+								memory[mapStart + y * mapX + x] === 0 ? "::" : "##"
+							);
+						}
+					}
+					//console.log(mapX,mapY,path);
+					for (let i = 0; i < path.length; i += 2) {
+						disp[path[i]][path[i + 1]] = "[]";
+					}
+					disp[y1][x1] = "<>";
+					disp[y2][x2] = "()";
+					for (let y = 0; y < mapY; y++) {
+						console.log(disp[y].join(""));
+					}
 				}
 			}
 		}
@@ -273,21 +296,40 @@ let fs = require("fs");
 			let mapX = Math.floor(Math.random() * 50 + 1);
 			let mapY = Math.floor(Math.random() * 50 + 1);
 			let c = instance.exports.init(mapX, mapY);
-			console.log(c);
-			if(c===0){
+			if (c === 0) {
 				console.log("无法初始化");
 				continue;
 			}
-			let x1 = Math.floor(Math.random() * mapX);
-			let y1 = Math.floor(Math.random() * mapY);
-			let x2 = Math.floor(Math.random() * mapX);
-			let y2 = Math.floor(Math.random() * mapY);
+			memory = new Uint32Array(instance.exports.memory.buffer);
+			let x1;
+			let y1;
+			let x2;
+			let y2;
 			for (let i = 0; i < mapX * mapY; i++) {
-				memory[i] = Math.random() < 0.8 ? 0 : 1;
+				memory[i] = Math.random() < 0.5 ? 0 : 1;
 			}
+			do {
+				x1 = Math.floor(Math.random() * mapX);
+				y1 = Math.floor(Math.random() * mapY);
+			} while (memory[y1 * mapX + x1] === 1);
+			do {
+				x2 = Math.floor(Math.random() * mapX);
+				y2 = Math.floor(Math.random() * mapY);
+			} while (memory[y2 * mapX + x2] === 1);
 			let out = instance.exports.a_star(x1, y1, x2, y2);
 			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, memory)
+			//console.log(mapX, mapY, x1, y1, x2, y2)
 			test("t" + x, out, ans);
+			if (out !== ans) {
+				let path = [];
+				let st = instance.exports.pathStart.value / 4;
+				for (let i = 0; i < out; i++) {
+					let dt = memory[st + i];
+					path.push(dt >> 16);
+					path.push(dt & 0xffff);
+				}
+				wimport.debug.inspect(x1, y1, x2, y2, path);
+			}
 		}
 	}
 
