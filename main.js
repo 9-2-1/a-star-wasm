@@ -291,22 +291,21 @@ let fs = require("fs");
 		memory[8] = 0;
 		test(4, instance.exports.a_star(0, 0, 0, 2), 5);
 		pathWrite();*/
+		let time1 = 0;
+		let time2 = 0;
 
-		for (let x = 1; x <= 3000; x++) {
-			let mapX = Math.floor(Math.random() * 50 + 5);
-			let mapY = Math.floor(Math.random() * 50 + 5);
+		for (let x = 1; x <= 1000; x++) {
+			let mapX = Math.floor(Math.random() * 1000 + 4);
+			let mapY = Math.floor(Math.random() * 1000 + 4);
 			let c = instance.exports.init(mapX, mapY);
 			if (c === 0) {
 				console.log("无法初始化");
 				continue;
 			}
 			memory = new Uint32Array(instance.exports.memory.buffer);
-			let x1;
-			let y1;
-			let x2;
-			let y2;
+			let x1, y1, x2, y2, mi = Math.random();
 			for (let i = 0; i < mapX * mapY; i++) {
-				memory[i] = Math.random() < 0.5 ? 0 : 1;
+				memory[i] = Math.random() < mi ? 0 : 1;
 			}
 			//wimport.debug.inspect();
 			do {
@@ -318,11 +317,17 @@ let fs = require("fs");
 				y2 = Math.floor(Math.random() * mapY);
 			} while (memory[y2 * mapX + x2] === 1);
 			//console.log("rd")
+			let t1 = Number(new Date());
 			let out = instance.exports.a_star(x1, y1, x2, y2);
 			//console.log("su")
+			let t2 = Number(new Date());
 			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, memory)
 			//console.log("pr")
 			//console.log(mapX, mapY, x1, y1, x2, y2)
+			let t3 = Number(new Date());
+			time1 += t2 - t1;
+			time2 += t3 - t2;
+
 			test("t" + x, out, ans);
 			if (out !== ans) {
 				let path = [];
@@ -335,6 +340,8 @@ let fs = require("fs");
 				wimport.debug.inspect(x1, y1, x2, y2, path);
 			}
 		}
+
+		console.log("wasm", time1, "ans", time2, "wasm/ans", time1 / time2);
 	}
 
 	// fs.writeFileSync("main.wat",module.toText({foldExprs: true, inlineExport: true}));
