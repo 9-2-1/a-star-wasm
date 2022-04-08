@@ -682,7 +682,7 @@
 														;;(call $log (local.get $pos))
 
 														;;如果目标点是路
-				;;(call $log (i32.const 99020102))
+														;;(call $log (i32.const 99020102))
 														(if
 															(i32.eqz
 																(i32.load (i32.add (global.get $mapStart) (local.get $pos))))
@@ -690,7 +690,7 @@
 																;;如果目标点g(n)小于当前g(n),就更新
 																;;因为对同一个点h(n)一定相同
 																;;所以可以认为f(n)也小于当前f(n)，可以省去一步计算
-				;;(call $log (i32.const 99020103))
+																;;(call $log (i32.const 99020103))
 																(if
 																	(i32.lt_u
 																		(local.get $gn)
@@ -782,7 +782,7 @@
 			;;(call $log (local.get $pos))
 
 			;;获取点方向
-				;;(call $log (i32.const 99020104))
+			;;(call $log (i32.const 99020104))
 			(local.set
 				$di
 				(i32.load (i32.add (global.get $diStart) (local.get $pos))))

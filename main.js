@@ -261,7 +261,7 @@ let fs = require("fs");
 	}
 
 	// 寻路测试
-	if (true) {
+	if (false) {
 		instance = await WebAssembly.instantiate(wmodule, wimport);
 		memory = new Uint32Array(instance.exports.memory.buffer);
 		/*test("1", instance.exports.growSize(4), 1);
