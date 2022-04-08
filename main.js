@@ -20,7 +20,7 @@ let fs = require("fs");
 		}
 	}
 
-	function pathAns(mapX, mapY, x1, y1, x2, y2, memory) {
+	function pathAns(mapX, mapY, x1, y1, x2, y2, memory, mapStart) {
 		let dist = [];
 		for (let i = 0; i < mapX * mapY; i++) {
 			dist.push(Infinity);
@@ -42,7 +42,7 @@ let fs = require("fs");
 				let y0 = y + z[a + 1];
 				//console.log("fech",x0,y0);
 				//console.log(memory[y*mapX+x]);
-				if (y0 >= 0 && y0 < mapY && x0 >= 0 && x0 < mapX && memory[y * mapX + x] === 0) {
+				if (y0 >= 0 && y0 < mapY && x0 >= 0 && x0 < mapX && memory[mapStart + y * mapX + x] === 0) {
 					let d0 = dist[y0 * mapX + x0];
 					if (d0 > d) {
 						dist[y0 * mapX + x0] = d;
@@ -302,10 +302,11 @@ let fs = require("fs");
 				console.log("无法初始化");
 				continue;
 			}
+			let mapStart = instance.exports.mapStart.value / 4;
 			memory = new Uint32Array(instance.exports.memory.buffer);
 			let x1, y1, x2, y2, mi = Math.random();
 			for (let i = 0; i < mapX * mapY; i++) {
-				memory[i] = Math.random() < mi ? 0 : 1;
+				memory[mapStart + i] = Math.random() < mi ? 0 : 1;
 			}
 			//wimport.debug.inspect();
 			do {
@@ -321,7 +322,7 @@ let fs = require("fs");
 			let out = instance.exports.a_star(x1, y1, x2, y2);
 			//console.log("su")
 			let t2 = Number(new Date());
-			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, memory)
+			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, memory, mapStart)
 			//console.log("pr")
 			//console.log(mapX, mapY, x1, y1, x2, y2)
 			let t3 = Number(new Date());

@@ -92,6 +92,7 @@
 	(global $gnStart (export "gnStart") (mut i32) (i32.const 0)) ;;g(n)数据起点位置
 	(global $fnStart (export "fnStart") (mut i32) (i32.const 0)) ;;f(n)数据起点位置
 	(global $pqStart (export "pqStart") (mut i32) (i32.const 0)) ;;小根堆起点位置
+	(global $dataSize (export "dataSize") (mut i32) (i32.const 0)) ;;前四个数据段的长度
 	(global $pathStart (export "pathStart") (mut i32) (i32.const 0)) ;;路线结果开始
 	(global $pathLength (export "pathLength") (mut i32) (i32.const 0)) ;;路线结果长度
 
@@ -414,18 +415,23 @@
 
 		(global.set $mapX (local.get $x))
 		(global.set $mapY (local.get $y))
-		;;因为默认值是0，所以不用改
-		;;(global.set $mapStart (i32.const 0))
+		;;计算前四段的长度
 		(global.set
-			$diStart
+			$dataSize
 			(i32.mul
 				(i32.mul
 					(local.get $x) (local.get $y)
 					(i32.const 4))))
-		;;因为除了pqStart之外每个部分大小一样，接下来可以直接乘
-		(global.set $fnStart (i32.mul (global.get $diStart) (i32.const 2)))
-		(global.set $gnStart (i32.mul (global.get $diStart) (i32.const 3)))
-		(global.set $pqStart (i32.mul (global.get $diStart) (i32.const 4)))
+		;;注意这里map将从256处开始，因为我打算在前面放一些代表方向的数据。
+		(global.set $mapStart (i32.const 256))
+		(global.set $diStart
+			(i32.add (global.get $mapStart) (global.get $dataSize)))
+		(global.set $fnStart
+			(i32.add (global.get $diStart) (global.get $dataSize)))
+		(global.set $gnStart
+			(i32.add (global.get $fnStart) (global.get $dataSize)))
+		(global.set $pqStart
+			(i32.add (global.get $gnStart) (global.get $dataSize)))
 		;;这里预计小根堆最多会包含4 x max{x,y}组数据，具体过程诶嘿
 		;;但是详细路线也会被写在这里，所以要考虑这部分的大小
 		;;路线长度(<格子数) x 8
@@ -433,7 +439,7 @@
 		(call
 			$growSize
 			(i32.add
-				(i32.mul (global.get $diStart) (i32.const 4))
+				(global.get $pqStart)
 				(i32.mul
 					(select ;;select相当于?:三目运算符
 						(i32.mul (local.get $x) (local.get $y))
@@ -506,12 +512,12 @@
 		(call $memset ;;填充区域
 					(global.get $diStart);;起点
 					(i32.const 0);;数值
-					(global.get $diStart));;长度
+					(global.get $dataSize));;长度
 		;;初始化距离区域为0xffffffff(无符号最大i32数)
 		(call $memset
 					(global.get $fnStart)
 					(i32.const 0xffffffff)
-					(i32.mul (global.get $diStart) (i32.const 2)))
+					(i32.mul (global.get $dataSize) (i32.const 2)))
 
 		;;(call $tell (global.get $mapStart) (global.get $distart))
 		;;(call $tell (global.get $diStart) (global.get $distart))
