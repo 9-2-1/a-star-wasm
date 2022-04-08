@@ -435,8 +435,9 @@
 		;;这里预计小根堆最多会包含4 x max{x,y}组数据，具体过程诶嘿
 		;;但是详细路线也会被写在这里，所以要考虑这部分的大小
 		;;路线长度(<格子数) x 8
-		;;最后grow一下并返回grow的结果
-		(call
+		;;最后grow一下
+		(if
+			 (call
 			$growSize
 			(i32.add
 				(global.get $pqStart)
@@ -444,7 +445,37 @@
 					(select ;;select相当于?:三目运算符
 						(i32.mul (local.get $x) (local.get $y))
 						(local.get $x) (local.get $y))
-					(i32.const 48)))));;12x4,12是每一组数据的的字节数
+					(i32.const 48))));;12x4,12是每一组数据的的字节数
+		(then
+			;;正方向列表
+			(i32.store (i32.const 0) (i32.const 1))
+			(i32.store (i32.const 4) (i32.const 0))
+
+			(i32.store (i32.const 8) (i32.const -1))
+			(i32.store (i32.const 12) (i32.const 0))
+
+			(i32.store (i32.const 16) (i32.const 0))
+			(i32.store (i32.const 20) (i32.const 1))
+
+			(i32.store (i32.const 24) (i32.const 0))
+			(i32.store (i32.const 28) (i32.const -1))
+
+			;;斜方向列表
+			(i32.store (i32.const 32) (i32.const 1))
+			(i32.store (i32.const 36) (i32.const 1))
+
+			(i32.store (i32.const 40) (i32.const 1))
+			(i32.store (i32.const 44) (i32.const -1))
+
+			(i32.store (i32.const 48) (i32.const -1))
+			(i32.store (i32.const 52) (i32.const 1))
+
+			(i32.store (i32.const 56) (i32.const -1))
+			(i32.store (i32.const 60) (i32.const -1))
+
+			(return (i32.const 1))))
+		;;否则，grow失败
+		(i32.const 0))
 
 	;;填充内存(代替memory.fill)
 	;;@param {i32} start 起始点
@@ -655,106 +686,108 @@
 
 				;;(call $log (i32.const 99300399))
 
-				;;用$x,$y获得所有可用方向
-				(local.set $x' (i32.const -1))
+				;;用$i获得所有可用方向
+				(local.set $i (i32.const 0))
 				(loop
-					$loopX
-					(local.set $x (i32.add (local.get $endX) (local.get $x')))
-					(local.set $y' (i32.const -1))
-					(loop
-						$loopY
-						(local.set $y (i32.add (local.get $endY) (local.get $y')))
+					$loopI
+					(local.set $x' (i32.load offset=0 (local.get $i)))
+					(local.set $y' (i32.load offset=4 (local.get $i)))
+					(local.set
+						$x
+						(i32.add (local.get $endX) (local.get $x')))
+					(local.set
+						$y
+						(i32.add (local.get $endY) (local.get $y')))
 
-						;;检查坐标是否在地图里
-						(if (i32.ge_s (local.get $x) (i32.const 0))
-							(then
-								(if (i32.ge_s (local.get $y) (i32.const 0))
-									(then
-										(if (i32.lt_s (local.get $x) (global.get $mapX))
-											(then
-												(if (i32.lt_s (local.get $y) (global.get $mapY))
-													(then
+					;;检查坐标是否在地图里
+					(if
+						(i32.and
+							(i32.and
+								(i32.ge_s (local.get $x) (i32.const 0))
+								(i32.lt_s (local.get $x) (global.get $mapX)))
+							(i32.and
+								(i32.ge_s (local.get $y) (i32.const 0))
+								(i32.lt_s (local.get $y) (global.get $mapY))))
+						(then
 
-														;;目标点的位置
-														(local.set
-															$pos
-															(i32.mul
-																(i32.const 4)
-																(i32.add
-																	(i32.mul (local.get $y) (global.get $mapX))
-																	(local.get $x))))
+							;;目标点的位置
+							(local.set
+								$pos
+								(i32.mul
+									(i32.const 4)
+									(i32.add
+										(i32.mul (local.get $y) (global.get $mapX))
+										(local.get $x))))
 
-														;;(call $log (i32.const 99090599))
-														;;(call $log (local.get $pos))
+							;;(call $log (i32.const 99090599))
+							;;(call $log (local.get $pos))
 
-														;;如果目标点是路
-														;;(call $log (i32.const 99020102))
-														(if
-															(i32.eqz
-																(i32.load (i32.add (global.get $mapStart) (local.get $pos))))
-															(then
-																;;如果目标点g(n)小于当前g(n),就更新
-																;;因为对同一个点h(n)一定相同
-																;;所以可以认为f(n)也小于当前f(n)，可以省去一步计算
-																;;(call $log (i32.const 99020103))
-																(if
-																	(i32.lt_u
-																		(local.get $gn)
-																		(i32.load (i32.add (global.get $gnStart) (local.get $pos))))
-																	(then
-																		;;计算估计距离h(n)
-																		(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
-																		(if
-																			(i32.lt_s (local.get $dx) (i32.const 0))
-																			(then
-																				(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
-																		(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
-																		(if
-																			(i32.lt_s (local.get $dy) (i32.const 0))
-																			(then
-																				(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
-																		(local.set
-																			$hn
-																			(select
-																				(local.get $dx) (local.get $dy)
-																				(i32.gt_u (local.get $dx) (local.get $dy))))
-																		(local.set $fn (i32.add (local.get $gn) (local.get $hn)))
-																		;;保存点的方向，f(n)和g(n)值
-																		(i32.store
-																			(i32.add (global.get $diStart) (local.get $pos))
-																			(i32.sub
-																				(i32.const 8)
-																				(i32.add
-																					(i32.mul
-																						(i32.const 3)
-																						(i32.add (local.get $y') (i32.const 1)))
-																					(i32.add (local.get $x') (i32.const 1)))))
-																		(i32.store
-																			(i32.add (global.get $fnStart) (local.get $pos))
-																			(local.get $fn))
-																		(i32.store
-																			(i32.add (global.get $gnStart) (local.get $pos))
-																			(local.get $gn))
+							;;如果目标点是路
+							;;(call $log (i32.const 99020102))
+							(if
+								(i32.eqz
+									(i32.load (i32.add (global.get $mapStart) (local.get $pos))))
+								(then
+									;;如果目标点g(n)小于当前g(n),就更新
+									;;因为对同一个点h(n)一定相同
+									;;所以可以认为f(n)也小于当前f(n)，可以省去一步计算
+									;;(call $log (i32.const 99020103))
+									(if
+										(i32.lt_u
+											(local.get $gn)
+											(i32.load (i32.add (global.get $gnStart) (local.get $pos))))
+										(then
+											;;计算估计距离h(n)
+											(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
+											(if
+												(i32.lt_s (local.get $dx) (i32.const 0))
+												(then
+													(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
+											(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
+											(if
+												(i32.lt_s (local.get $dy) (i32.const 0))
+												(then
+													(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
+											(local.set
+												$hn
+												(select
+													(local.get $dx) (local.get $dy)
+													(i32.gt_u (local.get $dx) (local.get $dy))))
+											(local.set $fn (i32.add (local.get $gn) (local.get $hn)))
+											;;保存点的方向，f(n)和g(n)值
+											(i32.store
+												(i32.add (global.get $diStart) (local.get $pos))
+												(i32.sub
+													(i32.const 8)
+													(i32.add
+														(i32.mul
+															(i32.const 3)
+															(i32.add (local.get $y') (i32.const 1)))
+														(i32.add (local.get $x') (i32.const 1)))))
+											(i32.store
+												(i32.add (global.get $fnStart) (local.get $pos))
+												(local.get $fn))
+											(i32.store
+												(i32.add (global.get $gnStart) (local.get $pos))
+												(local.get $gn))
 
-																		;;否则把点保存到小根堆，继续循环
-																		(local.set
-																			$pqLength
-																			(call
-																				$PQadd
-																				(global.get $pqStart)
-																				(local.get $pqLength)
-																				(local.get $x)
-																				(local.get $y)
-																				(local.get $fn)))))))
+											;;否则把点保存到小根堆，继续循环
+											(local.set
+												$pqLength
+												(call
+													$PQadd
+													(global.get $pqStart)
+													(local.get $pqLength)
+													(local.get $x)
+													(local.get $y)
+													(local.get $fn)))
 
-														;;这8个括号用来应对之前的4个如果
-														))))))))
+											))))
 
-						(local.set $y' (i32.add (local.get $y') (i32.const 1)))
-						(br_if $loopY (i32.le_s (local.get $y') (i32.const 1))))
+							))
 
-					(local.set $x' (i32.add (local.get $x') (i32.const 1)))
-					(br_if $loopX (i32.le_s (local.get $x') (i32.const 1))))
+					(local.set $i (i32.add (local.get $i) (i32.const 8)))
+					(br_if $loopI (i32.lt_u (local.get $i) (i32.const 64))))
 
 				(br $loopConti)))
 
