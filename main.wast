@@ -509,6 +509,40 @@
 				(local.set $length (i32.sub (local.get $length) (i32.const 4)))
 				(br $setConti))))
 
+		;;计算估计距离h(n), 也就是没有墙的时候两点间的最短距离
+		;;这里定义直线长度是2，对角线长度是3
+		;;@param {i32} aX
+		;;@param {i32} aY
+		;;@param {i32} bX
+		;;@param {i32} bY
+		;;@return {i32}
+		(func
+			$fhn
+			(param $aX i32)
+			(param $aY i32)
+			(param $bX i32)
+			(param $bY i32)
+			(result i32)
+			(local $dx i32)
+			(local $dy i32)
+			;;因为能走对角线，所以计算估计距离
+			;;这里定义直线长度是2，对角线长度是3
+			;; h(n) = max{|endX - startX|, |endY - startY|} * 1
+			;;      + min{|endX - startX|, |endY - startY|} * 2
+			(local.set $dx (i32.sub (local.get $aX) (local.get $bX)))
+			(if
+				(i32.lt_s (local.get $dx) (i32.const 0))
+				(then
+					(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
+			(local.set $dy (i32.sub (local.get $aY) (local.get $bY)))
+			(if
+				(i32.lt_s (local.get $dy) (i32.const 0))
+				(then
+					(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
+			(select
+				(i32.add (local.get $dx) (i32.mul (local.get $dy) (i32.const 2)))
+				(i32.add (local.get $dy) (i32.mul (local.get $dx) (i32.const 2)))
+				(i32.gt_u (local.get $dy) (local.get $dx))))
 	;;计算起点到终点的最短路径
 	;;@param {i32} startX 起始点X坐标
 	;;@param {i32} startY 起始点Y坐标
@@ -521,6 +555,7 @@
 		(param $startY i32)
 		(param $endX   i32) ;;终点坐标，后面变成下一个格子的坐标
 		(param $endY   i32)
+		(param $mode   i32) ;;
 		(result i32) ;;返回值类型
 
 		(local $pqLength i32) ;;小根堆项目数
@@ -528,16 +563,17 @@
 		(local $pos i32) ;;格子数据位置
 		(local $x i32) ;;格子坐标
 		(local $y i32)
-		(local $dx i32) ;;格子距离
-		(local $dy i32)
 		(local $x' i32) ;;前进方向
 		(local $y' i32)
 		(local $i i32)
 		(local $c i32) ;;格子路线写入位置
 		(local $di i32) ;;格子预估总路线f(n)长度
 		(local $fn i32) ;;格子预估总路线f(n)长度
+		(local $ogn i32) ;;当前格子路线g(n)长度
 		(local $gn i32) ;;格子路线g(n)长度
 		(local $hn i32) ;;格子预估路线h(n)长度
+
+		(local.set $mode (i32.mul (local.get $mode) (i32.const 32)))
 
 		;;初始化指向区域为0
 		(call $memset ;;填充区域
@@ -571,22 +607,12 @@
 			(i32.add (global.get $diStart) (local.get $pos))
 			(i32.const 4)) ;;4表示到达终点
 		;;计算估计距离h(n), 也就是没有墙的时候两点间的最短距离
-		;;因为能走对角线，所以计算估计距离h(n) = max{|endX - startX|, |endY - startY|}
-		(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
-		(if
-			(i32.lt_s (local.get $dx) (i32.const 0))
-			(then
-				(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
-		(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
-		(if
-			(i32.lt_s (local.get $dy) (i32.const 0))
-			(then
-				(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
 		(local.set
 			$hn
-			(select
-				(local.get $dx) (local.get $dy)
-				(i32.gt_u (local.get $dx) (local.get $dy))))
+			(call
+				$fhn
+				(local.get $endX) (local.get $endY)
+				(local.get $startX) (local.get $startY)))
 		(i32.store
 			(i32.add (global.get $fnStart) (local.get $pos))
 			(local.get $hn)) ;;终点f(n)是估计距离h(n)
@@ -675,14 +701,12 @@
 
 				;;(call $log (i32.const 99200299))
 
-				;;计算下一个点g(n)值：这个点的g(n)值加上1
+				;;记录这一个点g(n)值
 				;;(call $log (i32.const 99020101))
 				(local.set
-					$gn
-					(i32.add
-						(i32.const 1)
-						(i32.load
-							(i32.add (global.get $gnStart) (local.get $pos)))))
+					$ogn
+					(i32.load
+						(i32.add (global.get $gnStart) (local.get $pos))))
 
 				;;(call $log (i32.const 99300399))
 
@@ -728,6 +752,15 @@
 								(i32.eqz
 									(i32.load (i32.add (global.get $mapStart) (local.get $pos))))
 								(then
+									;;计算目标点g(n)，这里定义直线长度是2，对角线长度是3
+									(local.set
+										$gn
+										(i32.add
+											(local.get $ogn)
+											(select
+												(i32.const 3) (i32.const 2)
+												(i32.ge_u (local.get $i) (i32.const 32)))))
+
 									;;如果目标点g(n)小于当前g(n),就更新
 									;;因为对同一个点h(n)一定相同
 									;;所以可以认为f(n)也小于当前f(n)，可以省去一步计算
@@ -738,21 +771,12 @@
 											(i32.load (i32.add (global.get $gnStart) (local.get $pos))))
 										(then
 											;;计算估计距离h(n)
-											(local.set $dx (i32.sub (local.get $endX) (local.get $startX)))
-											(if
-												(i32.lt_s (local.get $dx) (i32.const 0))
-												(then
-													(local.set $dx (i32.sub (i32.const 0) (local.get $dx)))))
-											(local.set $dy (i32.sub (local.get $endY) (local.get $startY)))
-											(if
-												(i32.lt_s (local.get $dy) (i32.const 0))
-												(then
-													(local.set $dy (i32.sub (i32.const 0) (local.get $dy)))))
 											(local.set
 												$hn
-												(select
-													(local.get $dx) (local.get $dy)
-													(i32.gt_u (local.get $dx) (local.get $dy))))
+												(call
+													$fhn
+													(local.get $endX) (local.get $endY)
+													(local.get $startX) (local.get $startY)))
 											(local.set $fn (i32.add (local.get $gn) (local.get $hn)))
 											;;保存点的方向，f(n)和g(n)值
 											(i32.store
@@ -787,7 +811,7 @@
 							))
 
 					(local.set $i (i32.add (local.get $i) (i32.const 8)))
-					(br_if $loopI (i32.lt_u (local.get $i) (i32.const 64))))
+					(br_if $loopI (i32.lt_u (local.get $i) (local.get $mode))))
 
 				(br $loopConti)))
 

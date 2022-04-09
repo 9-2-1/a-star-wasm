@@ -20,7 +20,7 @@ let fs = require("fs");
 		}
 	}
 
-	function pathAns(mapX, mapY, x1, y1, x2, y2, memory, mapStart) {
+	function pathAns(mapX, mapY, x1, y1, x2, y2, mode, memory, mapStart) {
 		let dist = [];
 		for (let i = 0; i < mapX * mapY; i++) {
 			dist.push(Infinity);
@@ -36,8 +36,17 @@ let fs = require("fs");
 				return d;
 			}
 			cycle.splice(0, 2);
-			let z = [-1, 0, -1, 1, 0, 1, 1, 1, 1, 0, 1, -1, 0, -1, -1, -1];
-			for (let a = 0; a < 16; a += 2) {
+			let z = [
+				-1, 0,
+				1, 0,
+				0, -1,
+				0, 1,
+				-1, 1,
+				1, -1,
+				1, 1,
+				-1, -1
+			];
+			for (let a = 0; a < 8 * mode; a += 2) {
 				let x0 = x + z[a];
 				let y0 = y + z[a + 1];
 				//console.log("fech",x0,y0);
@@ -295,8 +304,8 @@ let fs = require("fs");
 		let time2 = 0;
 
 		for (let x = 1; x <= 1000; x++) {
-			let mapX = Math.floor(Math.random() * 1000 + 4);
-			let mapY = Math.floor(Math.random() * 1000 + 4);
+			let mapX = Math.floor(Math.random() * 40 + 4);
+			let mapY = Math.floor(Math.random() * 40 + 4);
 			let c = instance.exports.init(mapX, mapY);
 			if (c === 0) {
 				console.log("无法初始化");
@@ -304,7 +313,7 @@ let fs = require("fs");
 			}
 			let mapStart = instance.exports.mapStart.value / 4;
 			memory = new Uint32Array(instance.exports.memory.buffer);
-			let x1, y1, x2, y2, mi = Math.random();
+			let x1, y1, x2, y2, mi = Math.random() * 0.6 + 0.2;
 			for (let i = 0; i < mapX * mapY; i++) {
 				memory[mapStart + i] = Math.random() < mi ? 0 : 1;
 			}
@@ -312,17 +321,17 @@ let fs = require("fs");
 			do {
 				x1 = Math.floor(Math.random() * mapX);
 				y1 = Math.floor(Math.random() * mapY);
-			} while (memory[y1 * mapX + x1] === 1);
+			} while (memory[mapStart + y1 * mapX + x1] === 1);
 			do {
 				x2 = Math.floor(Math.random() * mapX);
 				y2 = Math.floor(Math.random() * mapY);
-			} while (memory[y2 * mapX + x2] === 1);
+			} while (memory[mapStart + y2 * mapX + x2] === 1);
 			//console.log("rd")
 			let t1 = Number(new Date());
-			let out = instance.exports.a_star(x1, y1, x2, y2);
+			let out = instance.exports.a_star(x1, y1, x2, y2, 2);
 			//console.log("su")
 			let t2 = Number(new Date());
-			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, memory, mapStart)
+			let ans = pathAns(mapX, mapY, x1, y1, x2, y2, 2, memory, mapStart)
 			//console.log("pr")
 			//console.log(mapX, mapY, x1, y1, x2, y2)
 			let t3 = Number(new Date());

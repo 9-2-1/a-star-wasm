@@ -1,9 +1,7 @@
 let map_draw = document.getElementById("map-draw");
-let map_path = document.getElementById("map-path");
-let map_start = document.getElementById("map-start");
-let map_end = document.getElementById("map-end");
 let map_mapX = document.getElementById("map-mapX");
 let map_mapY = document.getElementById("map-mapY");
+let map_cross = document.getElementById("map-cross");
 
 let instance, memory, mapStart, path;
 async function loadwasm() {
@@ -138,6 +136,10 @@ loadwasm().then(function() {
 	mapScale();
 	map_mapX.addEventListener("change", mapScale);
 	map_mapY.addEventListener("change", mapScale);
+	map_cross.addEventListener("change", function(event) {
+		path = mapCalc();
+		mapDraw();
+	});
 	window.addEventListener("resize", mapDraw);
 }).catch((e) => {
 	alert(e.message);
@@ -150,7 +152,7 @@ function mapDraw() {
 	);
 	map_draw.style.width = scale * mapX + "px";
 	map_draw.style.height = scale * mapY + "px";
-	map_draw.style.border = "1px black solid";
+	map_draw.style.border = "1px white solid";
 	map_draw.width = mapX * 30;
 	map_draw.height = mapY * 30;
 	let ct = map_draw.getContext("2d");
@@ -177,7 +179,7 @@ map_draw.addEventListener("touchstart", mapChangeStart);
 map_draw.addEventListener("touchmove", mapChangeStep);
 map_draw.addEventListener("mousedown", mapChangeStart);
 map_draw.addEventListener("mousemove", mapChangeStep);
-map_draw.addEventListener("mouseleave", mapChangeStop);
+window.addEventListener("mouseleave", mapChangeStop);
 map_draw.addEventListener("mouseup", mapChangeStop);
 
 let changeMode = -1;
@@ -234,7 +236,8 @@ function mapChangeStop(event) {
 }
 
 function mapCalc() {
-	let out = instance.exports.a_star(stX, stY, edX, edY);
+	let mode = map_cross.checked ? 2 : 1;
+	let out = instance.exports.a_star(stX, stY, edX, edY, mode);
 	if (out === -1) {
 		return [];
 	} else {
